@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 数据与大文件：真实比赛数据、模型权重、日志、提交结果不要提交到 GitHub
+data/train/*
+data/test/*
+!data/train/.gitkeep
+!data/test/.gitkeep
+!data/README.md
+!data/sample_submission.csv
+
+results/*
+!results/.gitkeep
+!results/README.md
+
+outputs/*
+!outputs/.gitkeep
+!outputs/README.md
+!outputs/submissions/.gitkeep
+!outputs/errors/.gitkeep
+
+logs/*
+!logs/.gitkeep
+!logs/README.md
+
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.npy
+*.npz
+*.zip
+*.tar
+*.tar.gz

@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -18,28 +19,36 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# 数据与大文件：真实比赛数据、模型权重、日志、提交结果不要提交到 GitHub
+# 数据与大文件：真实比赛数据、公开数据、模型权重、日志、提交结果不要提交到 GitHub
+data/raw/*
 data/train/*
 data/test/*
+data/dataset_prepare_report.json
+!data/.gitkeep
+!data/raw/.gitkeep
 !data/train/.gitkeep
 !data/test/.gitkeep
 !data/README.md
 !data/sample_submission.csv
 
+# 模型与训练结果
 results/*
 !results/.gitkeep
 !results/README.md
 
+# 推理输出与错误样本
 outputs/*
 !outputs/.gitkeep
 !outputs/README.md
 !outputs/submissions/.gitkeep
 !outputs/errors/.gitkeep
 
+# 训练日志
 logs/*
 !logs/.gitkeep
 !logs/README.md
 
+# 大文件与压缩包
 *.pth
 *.pt
 *.ckpt
@@ -49,3 +58,8 @@ logs/*
 *.zip
 *.tar
 *.tar.gz
+*.rar
+*.7z
+
+# Kaggle 凭证，严禁提交
+kaggle.json

@@ -1,0 +1,14 @@
+input:
+  image:
+    name: image
+    type: image
+    description: Input weather image.
+output:
+  label:
+    name: label
+    type: string
+    description: Predicted weather label.
+  confidence:
+    name: confidence
+    type: number
+    description: Prediction confidence.

@@ -5,7 +5,7 @@ import torch
 
 import config as cfg
 from src.dataset import build_class_mapping, create_dataloaders, scan_image_folder, stratified_split
-from src.metrics import plot_confusion_matrix, print_classification_report
+from src.metrics import export_error_samples, plot_confusion_matrix, print_classification_report
 from src.model import build_model
 from src.train_utils import EarlyStopping, build_loss_function, build_optimizer, build_scheduler, train_one_epoch, validate
 from src.utils import ensure_dirs, get_device, save_checkpoint, save_json, set_seed
@@ -64,6 +64,7 @@ def main():
     if best_true is not None:
         print_classification_report(best_true, best_pred, class_names)
         plot_confusion_matrix(best_true, best_pred, class_names, cfg.CONFUSION_MATRIX_PATH)
+        export_error_samples(val_df["path"].tolist(), best_true, best_pred, idx_to_class, cfg.ERRORS_DIR)
     save_json({"model_name": actual_name, "best_epoch": best_epoch, "best_score": best_score, "num_classes": num_classes}, cfg.TRAINING_SUMMARY_PATH)
 
 

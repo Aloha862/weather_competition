@@ -9,6 +9,7 @@ venv/
 env/
 ENV/
 .ipynb_checkpoints/
+tmp/
 
 # IDE
 .vscode/
@@ -18,7 +19,7 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# 数据与大文件：真实比赛数据、模型权重、日志、提交结果不要提交到 GitHub
+# Data and generated files: do not commit real datasets, model weights, logs, or submissions.
 data/train/*
 data/test/*
 !data/train/.gitkeep

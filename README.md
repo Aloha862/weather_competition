@@ -1,6 +1,6 @@
 # weather_competition
 
-Weather image classification pipeline for the Zhihai / Mo weather recognition competition. The project trains a PyTorch image classifier, saves the best validation checkpoint, and generates a submission CSV for test images.
+Weather image classification pipeline for the Zhihai / Mo weather recognition competition. The project supports training, validation, checkpoint saving, batch inference, submission CSV generation, and `handler.py` single-image prediction.
 
 ## Current Status
 
@@ -10,75 +10,136 @@ Weather image classification pipeline for the Zhihai / Mo weather recognition co
   - `rainy`: 446
   - `snowy`: 403
   - `sunny`: 1966
-- Current local runtime: `.venv` has CPU PyTorch installed; CUDA is not available in this machine.
-- Training pipeline smoke-tested end to end with a temporary dataset: train, checkpoint save, inference, and CSV format validation all pass.
-- Formal accuracy is not yet certified because full GPU training on the real dataset has not been run in this session. Use the validation `macro_f1` in `results/training_summary.json` as the primary acceptance metric.
-- `data/test` currently only contains `.gitkeep`; add the real competition test images before running final inference.
+- Local runtime used for verification: CPU PyTorch in `.venv`; CUDA is not available on this machine.
+- Full pipeline smoke test passed with a temporary synthetic dataset: train, checkpoint save, inference, and submission CSV validation.
+- Formal accuracy still needs a full GPU training run on the real dataset. Use validation `macro_f1` in `results/training_summary.json` as the main acceptance metric.
+- `data/test` currently only contains `.gitkeep`; add official test images before final inference.
+
+## JupyterLab First
+
+For platform use, open:
+
+```text
+coding_here.ipynb
+```
+
+The notebook walks through:
+
+1. Runtime and CUDA check.
+2. Project and platform path check.
+3. Optional `TRAIN_DIR`, `TEST_DIR`, and `SAMPLE_SUBMISSION_PATH` overrides.
+4. Training data scan.
+5. Lightweight smoke-test settings with `PRETRAINED=false` and `NUM_WORKERS=0`.
+6. Isolated synthetic smoke test through `scripts/smoke_test.py`.
+7. Full training settings.
+8. Training, inference, and submission inspection.
+
+For JupyterLab dependency installation, prefer:
+
+```bash
+pip install -r requirements_jupyter.txt
+```
+
+This file intentionally does not reinstall `torch` or `torchvision`, because competition platforms often preinstall CUDA-matched PyTorch builds.
 
 ## Project Layout
 
 ```text
 .
-├── config.py                  # paths, model, training hyperparameters
-├── train.py                   # training entry
-├── infer.py                   # batch inference / submission entry
-├── handler.py                 # Mo platform single-image handler
-├── src/
-│   ├── dataset.py             # data scan, transforms, dataloaders
-│   ├── model.py               # timm model builder with torchvision fallback
-│   ├── train_utils.py         # optimizer, scheduler, train/valid loops
-│   ├── inference.py           # prediction and submission generation
-│   ├── metrics.py             # accuracy, F1, confusion matrix
-│   └── utils.py               # IO, checkpoints, submission checks
-├── data/
-│   ├── train/                 # training data
-│   ├── test/                  # test images for final submission
-│   └── sample_submission.csv  # expected CSV columns
-├── results/                   # checkpoints and class mappings
-├── outputs/                   # submissions, figures, error samples
-└── logs/                      # CSV training logs
+|-- coding_here.ipynb
+|-- config.py
+|-- train.py
+|-- infer.py
+|-- handler.py
+|-- requirements.txt
+|-- requirements_jupyter.txt
+|-- configs/
+|   `-- smoke_test_config.py
+|-- scripts/
+|   |-- check_platform_paths.py
+|   |-- prepare_public_weather_dataset.py
+|   `-- smoke_test.py
+|-- src/
+|   |-- dataset.py
+|   |-- model.py
+|   |-- train_utils.py
+|   |-- inference.py
+|   |-- metrics.py
+|   `-- utils.py
+|-- data/
+|   |-- train/
+|   |-- test/
+|   `-- sample_submission.csv
+|-- results/
+|-- outputs/
+`-- logs/
 ```
 
 ## Data Format
 
-The preferred structure is:
+Preferred structure:
 
 ```text
 data/train/
-├── cloudy/*.jpg
-├── rainy/*.jpg
-├── snowy/*.jpg
-└── sunny/*.jpg
+|-- cloudy/*.jpg
+|-- rainy/*.jpg
+|-- snowy/*.jpg
+`-- sunny/*.jpg
 
 data/test/*.jpg
 ```
 
-The loader also supports the currently unpacked nested layout:
+The loader also supports common nested layouts such as:
 
 ```text
-data/train/天气识别/train/train/{cloudy,rainy,snowy,sunny}/*.jpg
+data/train/<dataset_name>/train/train/{cloudy,rainy,snowy,sunny}/*.jpg
 ```
 
-The scanner finds the real class folders recursively when `data/train` does not directly contain class folders.
+When `data/train` does not directly contain class folders, the scanner recursively finds the real class folders.
+
+If an uploaded dataset is nested, prepare a clean project layout with:
+
+```bash
+python scripts/prepare_public_weather_dataset.py --source path/to/unpacked_dataset --output data/train
+```
+
+Use `--max-per-class 20` for a quick small copy.
 
 ## Install
 
-Use the existing virtual environment when working locally:
+Local full dependencies:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Or with an activated environment:
+JupyterLab lightweight dependencies:
 
-```powershell
-pip install -r requirements.txt
+```bash
+pip install -r requirements_jupyter.txt
 ```
 
-Check the runtime:
+Check runtime:
 
 ```powershell
 .\.venv\Scripts\python.exe -c "import torch, timm; print(torch.__version__); print('cuda=', torch.cuda.is_available()); print(timm.__version__)"
+```
+
+## Platform Path Check
+
+Run this first after uploading to a platform:
+
+```bash
+python scripts/check_platform_paths.py
+```
+
+Then set paths in Notebook or shell when needed:
+
+```python
+import os
+os.environ["TRAIN_DIR"] = "actual_train_dir"
+os.environ["TEST_DIR"] = "actual_test_dir"
+os.environ["SAMPLE_SUBMISSION_PATH"] = "actual_sample_submission.csv"
 ```
 
 ## Configuration
@@ -98,13 +159,30 @@ Useful overrides:
 
 - `MODEL_NAME`: default `convnext_tiny`; good alternatives include `tf_efficientnetv2_s`, `efficientnet_b0`, `resnet50`, `resnet18`.
 - `PRETRAINED`: default `true`; set `false` for offline smoke tests.
+- `NUM_WORKERS`: use `0` in Notebook; use `2` or `4` in GPU jobs if stable.
 - `USE_CLASS_WEIGHT`: default `false`; try `true` if minority classes have poor recall.
 - `TARGET_METRIC`: default `macro_f1`; keep this for imbalanced classes.
 - `RESULTS_DIR`, `OUTPUTS_DIR`, `LOGS_DIR`: redirect generated files for experiments.
 
+## Smoke Test
+
+Run an isolated smoke test that does not require official test images:
+
+```bash
+python scripts/smoke_test.py --epochs 1 --batch-size 8 --model-name efficientnet_b0 --fallback-model-name efficientnet_b0
+```
+
+The script creates a tiny temporary dataset under `tmp/smoke_test`, trains for one epoch, runs inference, and validates the generated CSV.
+
+To smoke-test the configured real data paths:
+
+```bash
+python scripts/smoke_test.py --use-existing-data --epochs 1 --batch-size 8 --skip-infer
+```
+
 ## Quick Checks
 
-Check that the real training data is read as 4 classes:
+Check that real training data is read as 4 classes:
 
 ```powershell
 .\.venv\Scripts\python.exe -c "from src.dataset import scan_image_folder; df=scan_image_folder('data/train'); print(df['label'].value_counts().sort_index()); print('total=', len(df))"
@@ -123,7 +201,7 @@ total=4999
 Compile-check the code:
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall config.py train.py infer.py handler.py src
+.\.venv\Scripts\python.exe -m compileall config.py train.py infer.py handler.py src scripts configs
 ```
 
 ## Train
@@ -142,10 +220,11 @@ Training writes:
 - `results/training_summary.json`
 - `logs/train_log.csv`
 - `outputs/confusion_matrix.png`
+- `outputs/errors/` grouped misclassified validation samples
 
 The best checkpoint is selected by `TARGET_METRIC`, which defaults to `macro_f1`.
 
-For a CPU-only sanity run, lower the workload:
+For a CPU-only sanity run:
 
 ```powershell
 $env:MODEL_NAME="resnet18"
@@ -180,15 +259,18 @@ Use this project as the strong baseline:
 1. Start with `convnext_tiny`, `PRETRAINED=true`, `IMG_SIZE=224`, `EPOCHS=30`.
 2. Track `val_macro_f1`, `val_weighted_f1`, and `val_accuracy` in `logs/train_log.csv`.
 3. Check minority-class recall for `rainy` and `snowy` in the classification report.
-4. If minority classes lag, run another experiment with `USE_CLASS_WEIGHT=true`.
-5. Try `tf_efficientnetv2_s` if GPU memory allows.
-6. Submit only after the validation score is stable across at least one rerun or a stricter split.
+4. Review `outputs/errors/` to inspect repeated confusion pairs.
+5. If minority classes lag, run another experiment with `USE_CLASS_WEIGHT=true`.
+6. Try `tf_efficientnetv2_s` if GPU memory allows.
+7. Submit only after validation score is stable across at least one rerun or a stricter split.
 
 A high leaderboard score cannot be guaranteed from code alone. It must be confirmed by real validation results after full training.
 
 ## Mo Platform Notes
 
-- Use Notebook for data checks and smoke tests.
+- Use `coding_here.ipynb` for first-run checks and smoke tests.
+- Use `requirements_jupyter.txt` before reinstalling full dependencies.
+- Use `scripts/check_platform_paths.py` to locate uploaded datasets.
 - Use GPU Job for full training.
 - Keep generated models and summaries under `results/`.
 - Keep generated submissions under `outputs/submissions/`.
@@ -203,7 +285,7 @@ A high leaderboard score cannot be guaranteed from code alone. It must be confir
 
 Before uploading `outputs/submissions/submission.csv`:
 
-- `data/test` contains the official test images.
+- `data/test` contains the official test images or `TEST_DIR` points to them.
 - `results/best_model.pth` exists and matches the intended experiment.
 - `results/idx_to_class.json` contains the expected weather labels.
 - CSV columns match `data/sample_submission.csv`.

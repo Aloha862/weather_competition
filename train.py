@@ -5,7 +5,7 @@ import torch
 
 import config as cfg
 from src.dataset import build_class_mapping, create_dataloaders, scan_image_folder, stratified_split
-from src.metrics import export_error_samples, plot_confusion_matrix, print_classification_report
+from src.metrics import export_error_samples, plot_confusion_matrix, plot_training_curves, print_classification_report
 from src.model import build_model
 from src.train_utils import EarlyStopping, build_loss_function, build_optimizer, build_scheduler, train_one_epoch, validate
 from src.utils import ensure_dirs, get_device, save_checkpoint, save_json, set_seed
@@ -15,7 +15,13 @@ def main():
     set_seed(cfg.SEED)
     ensure_dirs([cfg.RESULTS_DIR, cfg.OUTPUTS_DIR, cfg.SUBMISSIONS_DIR, cfg.ERRORS_DIR, cfg.LOGS_DIR])
     device = get_device()
-    print(f"device={device}")
+    print(f"device={device}", flush=True)
+    if device.type == "cuda":
+        index = device.index if device.index is not None else torch.cuda.current_device()
+        name = torch.cuda.get_device_name(index)
+        props = torch.cuda.get_device_properties(index)
+        total_gb = props.total_memory / (1024 ** 3)
+        print(f"gpu={name}, total_memory={total_gb:.1f}GB", flush=True)
 
     df = scan_image_folder(cfg.TRAIN_DIR)
     class_to_idx, idx_to_class = build_class_mapping(df["label"].tolist(), cfg.CLASS_TO_IDX_PATH, cfg.IDX_TO_CLASS_PATH)
@@ -56,7 +62,8 @@ def main():
         row = {"epoch": epoch, "train_loss": tm["loss"], "train_accuracy": tm["accuracy"], "train_macro_f1": tm["macro_f1"], "train_weighted_f1": tm["weighted_f1"], "val_loss": vm["loss"], "val_accuracy": vm["accuracy"], "val_macro_f1": vm["macro_f1"], "val_weighted_f1": vm["weighted_f1"], "lr": optimizer.param_groups[0]["lr"]}
         with Path(cfg.TRAIN_LOG_PATH).open("a", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=fields).writerow(row)
-        print(row)
+        plot_training_curves(cfg.TRAIN_LOG_PATH, cfg.TRAINING_CURVES_PATH)
+        print(row, flush=True)
         if stopper.should_stop:
             break
 

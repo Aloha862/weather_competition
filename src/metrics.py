@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
 from src.utils import ensure_dir
@@ -48,6 +49,38 @@ def plot_confusion_matrix(y_true: Sequence[int], y_pred: Sequence[int], class_na
         for j in range(len(class_names)):
             ax.text(j, i, str(cm[i, j]), ha="center", va="center")
     fig.colorbar(im, ax=ax)
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=160)
+    plt.close(fig)
+
+
+def plot_training_curves(log_path: str | Path, save_path: str | Path) -> None:
+    """Save loss and validation metric curves from the CSV training log."""
+    log_path = Path(log_path)
+    if not log_path.exists():
+        return
+    df = pd.read_csv(log_path)
+    if df.empty:
+        return
+    save_path = Path(save_path)
+    ensure_dir(save_path.parent)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    axes[0].plot(df["epoch"], df["train_loss"], marker="o", label="train_loss")
+    axes[0].plot(df["epoch"], df["val_loss"], marker="o", label="val_loss")
+    axes[0].set_xlabel("epoch")
+    axes[0].set_ylabel("loss")
+    axes[0].legend()
+    axes[0].grid(alpha=0.3)
+
+    axes[1].plot(df["epoch"], df["train_macro_f1"], marker="o", label="train_macro_f1")
+    axes[1].plot(df["epoch"], df["val_macro_f1"], marker="o", label="val_macro_f1")
+    axes[1].plot(df["epoch"], df["val_accuracy"], marker="o", label="val_accuracy")
+    axes[1].set_xlabel("epoch")
+    axes[1].set_ylabel("score")
+    axes[1].set_ylim(0, 1)
+    axes[1].legend()
+    axes[1].grid(alpha=0.3)
+
     fig.tight_layout()
     fig.savefig(save_path, dpi=160)
     plt.close(fig)

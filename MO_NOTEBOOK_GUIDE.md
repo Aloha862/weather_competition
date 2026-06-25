@@ -59,9 +59,27 @@ os.environ["NUM_WORKERS"] = "0"
 
 Use a GPU job for full training:
 
+```python
+import os
+
+os.environ["DEVICE"] = "cuda"
+os.environ["REQUIRE_CUDA"] = "true"
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["FALLBACK_MODEL_NAME"] = "efficientnet_b0"
+os.environ["PRETRAINED"] = "true"
+os.environ["IMG_SIZE"] = "224"
+os.environ["BATCH_SIZE"] = "8"
+os.environ["EPOCHS"] = "30"
+os.environ["NUM_WORKERS"] = "2"
+os.environ["USE_AMP"] = "true"
+os.environ["USE_CLASS_WEIGHT"] = "true"
+```
+
 ```bash
 python train.py
 ```
+
+The training log must show `device=cuda` and the GPU name. If CUDA is not visible, `REQUIRE_CUDA=true` stops training instead of silently falling back to CPU.
 
 ## 6. Run Inference
 
@@ -79,4 +97,3 @@ Generated files:
 - `outputs/confusion_matrix.png`
 - `outputs/errors/`
 - `outputs/submissions/submission.csv`
-

@@ -9,9 +9,11 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from src.metrics import calculate_accuracy, calculate_f1
+
+PROGRESS_LEAVE = True
 
 
 @dataclass
@@ -78,7 +80,7 @@ def train_one_epoch(model: nn.Module, loader, criterion, optimizer, device: torc
     total_loss = 0.0
     all_true: List[int] = []
     all_pred: List[int] = []
-    progress = tqdm(loader, desc=f"Train {epoch}", leave=False)
+    progress = tqdm(loader, desc=f"Train {epoch}", leave=PROGRESS_LEAVE, dynamic_ncols=True, mininterval=0.5)
     for images, labels in progress:
         images = images.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
@@ -111,7 +113,7 @@ def validate(model: nn.Module, loader, criterion, device: torch.device) -> Tuple
     all_true: List[int] = []
     all_pred: List[int] = []
     with torch.inference_mode():
-        for images, labels in tqdm(loader, desc="Validate", leave=False):
+        for images, labels in tqdm(loader, desc="Validate", leave=PROGRESS_LEAVE, dynamic_ncols=True, mininterval=0.5):
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
             logits = model(images)

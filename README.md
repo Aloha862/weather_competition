@@ -57,6 +57,8 @@ This file intentionally does not reinstall `torch` or `torchvision`, because com
 |   `-- smoke_test_config.py
 |-- scripts/
 |   |-- check_platform_paths.py
+|   |-- download_public_weather_test.py
+|   |-- evaluate_labeled_folder.py
 |   |-- prepare_public_weather_dataset.py
 |   `-- smoke_test.py
 |-- src/
@@ -157,6 +159,8 @@ $env:TEST_DIR="data/test"
 
 Useful overrides:
 
+- `DEVICE`: default `auto`; set `cuda` for GPU training.
+- `REQUIRE_CUDA`: default `false`; set `true` to fail fast if the current runtime is not GPU-enabled.
 - `MODEL_NAME`: default `convnext_tiny`; good alternatives include `tf_efficientnetv2_s`, `efficientnet_b0`, `resnet50`, `resnet18`.
 - `PRETRAINED`: default `true`; set `false` for offline smoke tests.
 - `NUM_WORKERS`: use `0` in Notebook; use `2` or `4` in GPU jobs if stable.
@@ -179,6 +183,44 @@ To smoke-test the configured real data paths:
 ```bash
 python scripts/smoke_test.py --use-existing-data --epochs 1 --batch-size 8 --skip-infer
 ```
+
+## External Public Test Set
+
+For a real labeled external test, this project can prepare the public Hugging Face dataset `davidshableski/weatherimages`.
+
+Source notes:
+
+- The repository README for `DavidShableski/weather-image-classification` says the dataset has about 1000 images with train/test split.
+- The reported classes are `sunny`, `rainy`, `cloudy`, `snowy`, and `sunrise`.
+- This project keeps only the four overlapping labels: `cloudy`, `rainy`, `snowy`, `sunny`.
+- The current `Data.zip` file extracts to a `raw/` folder. If no split folder exists, the script prepares a labeled external set from `raw/`.
+
+Download and prepare the external test set:
+
+```bash
+python scripts/download_public_weather_test.py --output-dir tmp/public_weather_test
+```
+
+For a balanced quick test, cap each class:
+
+```bash
+python scripts/download_public_weather_test.py --output-dir tmp/public_weather_test --max-per-class 50
+```
+
+Evaluate the trained checkpoint:
+
+```bash
+python scripts/evaluate_labeled_folder.py --data-dir tmp/public_weather_test --output-dir outputs/external_test --batch-size 32 --num-workers 0
+```
+
+Generated evaluation files:
+
+- `outputs/external_test/external_test_metrics.json`
+- `outputs/external_test/external_test_report.txt`
+- `outputs/external_test/external_test_predictions.csv`
+- `outputs/external_test/external_test_confusion_matrix.png`
+
+This requires `results/best_model.pth` and `results/idx_to_class.json`, so run training first.
 
 ## Quick Checks
 
@@ -210,6 +252,40 @@ For full training, use a GPU job when possible:
 
 ```powershell
 .\.venv\Scripts\python.exe train.py
+```
+
+GPU full-training environment:
+
+```python
+import os
+
+os.environ["DEVICE"] = "cuda"
+os.environ["REQUIRE_CUDA"] = "true"
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["FALLBACK_MODEL_NAME"] = "efficientnet_b0"
+os.environ["PRETRAINED"] = "true"
+os.environ["IMG_SIZE"] = "224"
+os.environ["BATCH_SIZE"] = "8"
+os.environ["EPOCHS"] = "30"
+os.environ["NUM_WORKERS"] = "2"
+os.environ["USE_AMP"] = "true"
+os.environ["USE_CLASS_WEIGHT"] = "true"
+```
+
+When training starts, the log should show `device=cuda` and the GPU name. If it shows `device=cpu`, you are not training on GPU. If `REQUIRE_CUDA=true` and CUDA is unavailable, training stops immediately with a clear error.
+
+To switch models, only change `MODEL_NAME` and adjust `BATCH_SIZE` if needed:
+
+```python
+# EfficientNetV2-S, stronger but heavier
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["FALLBACK_MODEL_NAME"] = "efficientnet_b0"
+os.environ["BATCH_SIZE"] = "8"
+
+# ConvNeXt Tiny, previous baseline
+os.environ["MODEL_NAME"] = "convnext_tiny"
+os.environ["FALLBACK_MODEL_NAME"] = "resnet50"
+os.environ["BATCH_SIZE"] = "16"
 ```
 
 Training writes:

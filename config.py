@@ -15,6 +15,8 @@ DATA_DIR = Path(os.getenv('DATA_DIR', 'data'))
 TRAIN_DIR = Path(os.getenv('TRAIN_DIR', 'data/train'))
 TEST_DIR = Path(os.getenv('TEST_DIR', 'data/test'))
 SAMPLE_SUBMISSION_PATH = Path(os.getenv('SAMPLE_SUBMISSION_PATH', 'data/sample_submission.csv'))
+DEVICE = os.getenv('DEVICE', 'auto')
+REQUIRE_CUDA = _get_env('REQUIRE_CUDA', False, bool)
 
 RESULTS_DIR = Path(os.getenv('RESULTS_DIR', 'results'))
 OUTPUTS_DIR = Path(os.getenv('OUTPUTS_DIR', 'outputs'))
@@ -29,6 +31,7 @@ TRAINING_SUMMARY_PATH = Path(os.getenv('TRAINING_SUMMARY_PATH', str(RESULTS_DIR 
 TRAIN_LOG_PATH = Path(os.getenv('TRAIN_LOG_PATH', str(LOGS_DIR / 'train_log.csv')))
 SUBMISSION_PATH = Path(os.getenv('SUBMISSION_PATH', str(SUBMISSIONS_DIR / 'submission.csv')))
 CONFUSION_MATRIX_PATH = Path(os.getenv('CONFUSION_MATRIX_PATH', str(OUTPUTS_DIR / 'confusion_matrix.png')))
+TRAINING_CURVES_PATH = Path(os.getenv('TRAINING_CURVES_PATH', str(OUTPUTS_DIR / 'training_curves.png')))
 
 MODEL_NAME = os.getenv('MODEL_NAME', 'convnext_tiny')
 FALLBACK_MODEL_NAME = os.getenv('FALLBACK_MODEL_NAME', 'resnet50')

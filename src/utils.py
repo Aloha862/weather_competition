@@ -65,8 +65,35 @@ def count_parameters(model: torch.nn.Module) -> int:
 
 
 def get_device() -> torch.device:
-    """Return cuda device when available, otherwise cpu."""
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """Return the requested training device.
+
+    Environment variables:
+    - DEVICE=auto|cpu|cuda|cuda:0
+    - REQUIRE_CUDA=true fails fast when CUDA is unavailable.
+    """
+    requested = os.getenv("DEVICE", "auto").strip().lower()
+    require_cuda = os.getenv("REQUIRE_CUDA", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    if requested in {"auto", ""}:
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if require_cuda:
+            raise RuntimeError(
+                "REQUIRE_CUDA=true but CUDA is not available. "
+                "Use a GPU runtime or install a CUDA-enabled PyTorch build."
+            )
+        return torch.device("cpu")
+    if requested == "cpu":
+        if require_cuda:
+            raise RuntimeError("REQUIRE_CUDA=true conflicts with DEVICE=cpu.")
+        return torch.device("cpu")
+    if requested.startswith("cuda"):
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                f"DEVICE={requested} was requested, but CUDA is not available. "
+                "Current PyTorch may be CPU-only, or this machine has no visible NVIDIA GPU."
+            )
+        return torch.device(requested)
+    raise ValueError(f"Unsupported DEVICE value: {requested}. Use auto, cpu, cuda, or cuda:0.")
 
 
 def save_checkpoint(model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer], epoch: int,

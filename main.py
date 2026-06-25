@@ -1,11 +1,8 @@
-"""Platform entry point for single-image weather prediction.
-
-Do not generate this file from the training notebook. Competition system tests
-should call `handle(data)` for inference only.
-"""
-from typing import Any, Dict
+"""Platform entry point for single-image weather prediction."""
+from typing import Any, Dict, Union
 
 from handler import handle as _handle
+from handler import predict as _predict
 
 
 def handle(data: Any) -> Dict[str, Any]:
@@ -13,7 +10,6 @@ def handle(data: Any) -> Dict[str, Any]:
     return _handle(data)
 
 
-def predict(data: Any) -> Dict[str, Any]:
-    """Compatibility alias for platforms that call `predict`."""
-    return handle(data)
-
+def predict(data: Any) -> Union[str, int]:
+    """Return only the class label for scoring scripts."""
+    return _predict(data)

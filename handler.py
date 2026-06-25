@@ -14,6 +14,8 @@ from src.dataset import build_transforms
 from src.model import build_model
 from src.utils import get_device, load_checkpoint, load_checkpoint_payload, load_json
 
+DEFAULT_LABEL = "cloudy"
+
 _MODEL = None
 _TRANSFORM = None
 _IDX_TO_CLASS = None
@@ -63,3 +65,13 @@ def handle(data: Any) -> Dict[str, Any]:
         return {"label": label, "confidence": float(confidence.item())}
     except Exception as exc:
         return {"error": str(exc)}
+
+
+def predict(data: Any) -> str:
+    """Return only the class label for platform scoring."""
+    result = handle(data)
+    if isinstance(result, dict):
+        label = result.get("label")
+        if isinstance(label, str) and label:
+            return label
+    return DEFAULT_LABEL

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 from typing import Dict, List, Tuple
 
 import pandas as pd
@@ -9,25 +10,53 @@ import torch
 from tqdm import tqdm
 
 from src.dataset import create_test_loader
-from src.utils import check_submission_format, ensure_dir
+from src.utils import check_submission_format, ensure_dir, save_json
 
 
-def predict_test(model, test_loader, device: torch.device, idx_to_class: Dict[str, str]) -> Tuple[List[str], List[str], List[float]]:
+def _model_size_mb(model) -> float:
+    return float(sum(p.numel() * p.element_size() for p in model.parameters()) / (1024 ** 2))
+
+
+def predict_test(model, test_loader, device: torch.device, idx_to_class: Dict[str, str],
+                 use_tta: bool = False, tta_mode: str = "none",
+                 benchmark_path: str | Path | None = None) -> Tuple[List[str], List[str], List[float]]:
     """Run batch inference on test images."""
     model.eval()
     image_ids: List[str] = []
     labels: List[str] = []
     confs: List[float] = []
+    start = time.perf_counter()
+    num_images = 0
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
     with torch.inference_mode():
         for images, ids in tqdm(test_loader, desc="Inference", leave=False):
             images = images.to(device, non_blocking=True)
             logits = model(images)
+            if use_tta and str(tta_mode).lower() == "hflip":
+                logits = (logits + model(torch.flip(images, dims=[3]))) / 2.0
             probs = torch.softmax(logits, dim=1)
             scores, preds = probs.max(dim=1)
+            num_images += len(ids)
             for img_id, pred_idx, score in zip(ids, preds.cpu().tolist(), scores.cpu().tolist()):
                 image_ids.append(str(img_id))
                 labels.append(idx_to_class.get(str(int(pred_idx)), str(int(pred_idx))))
                 confs.append(float(score))
+    elapsed = time.perf_counter() - start
+    if benchmark_path is not None:
+        peak_mb = 0.0
+        if device.type == "cuda":
+            peak_mb = float(torch.cuda.max_memory_allocated(device) / (1024 ** 2))
+        save_json({
+            "num_images": num_images,
+            "elapsed_sec": elapsed,
+            "time_per_image_ms": (elapsed / max(1, num_images)) * 1000.0,
+            "batch_size": getattr(test_loader, "batch_size", None),
+            "use_tta": bool(use_tta),
+            "tta_mode": tta_mode,
+            "model_size_mb": _model_size_mb(model),
+            "peak_gpu_memory_mb": peak_mb,
+        }, benchmark_path)
     return image_ids, labels, confs
 
 

@@ -10,6 +10,8 @@ env/
 ENV/
 .ipynb_checkpoints/
 tmp/
+wandb/
+mlruns/
 
 # IDE
 .vscode/

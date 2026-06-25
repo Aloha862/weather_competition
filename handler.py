@@ -12,7 +12,7 @@ from PIL import Image
 import config as cfg
 from src.dataset import build_transforms
 from src.model import build_model
-from src.utils import get_device, load_checkpoint, load_json
+from src.utils import get_device, load_checkpoint, load_checkpoint_payload, load_json
 
 _MODEL = None
 _TRANSFORM = None
@@ -28,7 +28,9 @@ def _load_runtime():
     _DEVICE = get_device()
     _IDX_TO_CLASS = load_json(cfg.IDX_TO_CLASS_PATH)
     num_classes = len(_IDX_TO_CLASS)
-    _MODEL, _ = build_model(cfg.MODEL_NAME, num_classes, pretrained=False, fallback_model_name=cfg.FALLBACK_MODEL_NAME)
+    checkpoint = load_checkpoint_payload(cfg.BEST_MODEL_PATH, _DEVICE)
+    model_name = checkpoint.get("model_name", cfg.MODEL_NAME)
+    _MODEL, _ = build_model(model_name, num_classes, pretrained=False, fallback_model_name=cfg.FALLBACK_MODEL_NAME)
     _MODEL = _MODEL.to(_DEVICE)
     load_checkpoint(_MODEL, cfg.BEST_MODEL_PATH, _DEVICE)
     _MODEL.eval()

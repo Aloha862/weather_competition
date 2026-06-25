@@ -86,12 +86,17 @@ def save_checkpoint(model: torch.nn.Module, optimizer: Optional[torch.optim.Opti
     torch.save(payload, path)
 
 
-def load_checkpoint(model: torch.nn.Module, path: Path | str, device: torch.device) -> Dict[str, Any]:
-    """Load checkpoint into a model and return checkpoint metadata."""
+def load_checkpoint_payload(path: Path | str, device: torch.device) -> Dict[str, Any]:
+    """Load a checkpoint file and return its payload."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {path}")
-    checkpoint = torch.load(path, map_location=device)
+    return torch.load(path, map_location=device)
+
+
+def load_checkpoint(model: torch.nn.Module, path: Path | str, device: torch.device) -> Dict[str, Any]:
+    """Load checkpoint into a model and return checkpoint metadata."""
+    checkpoint = load_checkpoint_payload(path, device)
     state_dict = checkpoint.get("model_state_dict", checkpoint)
     model.load_state_dict(state_dict)
     return checkpoint

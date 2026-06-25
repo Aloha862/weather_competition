@@ -17,6 +17,25 @@ from src.utils import save_json
 VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
+def _has_direct_images(folder: Path) -> bool:
+    return any(p.is_file() and p.suffix.lower() in VALID_EXTENSIONS for p in folder.iterdir())
+
+
+def _discover_class_dirs(train_dir: Path) -> List[Path]:
+    """Find class folders, including common nested train/train/class layouts."""
+    direct_class_dirs = [
+        p for p in sorted(train_dir.iterdir())
+        if p.is_dir() and _has_direct_images(p)
+    ]
+    if direct_class_dirs:
+        return direct_class_dirs
+    nested_class_dirs = [
+        p for p in sorted(train_dir.rglob("*"))
+        if p.is_dir() and _has_direct_images(p)
+    ]
+    return nested_class_dirs
+
+
 class WeatherDataset(Dataset):
     """PyTorch dataset for train, validation and test images."""
 
@@ -70,14 +89,23 @@ def scan_image_folder(train_dir: str | Path) -> pd.DataFrame:
     if not train_dir.exists():
         raise FileNotFoundError(f"Training directory not found: {train_dir}")
     rows: List[Dict[str, str]] = []
-    for class_dir in sorted([p for p in train_dir.iterdir() if p.is_dir()]):
+    class_dirs = _discover_class_dirs(train_dir)
+    if not class_dirs:
+        raise ValueError(f"No class folders with images found under: {train_dir}")
+    for class_dir in class_dirs:
         label = class_dir.name
         for image_path in sorted(class_dir.rglob("*")):
             if image_path.is_file() and image_path.suffix.lower() in VALID_EXTENSIONS:
                 rows.append({"path": str(image_path), "label": label, "image_id": image_path.name})
     if not rows:
         raise ValueError(f"No images found in folder-style dataset: {train_dir}")
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if df["label"].nunique() < 2:
+        raise ValueError(
+            f"Only one class was found under {train_dir}. "
+            "Expected at least two class folders such as data/train/sunny/*.jpg."
+        )
+    return df
 
 
 def scan_test_folder(test_dir: str | Path) -> pd.DataFrame:
@@ -123,6 +151,9 @@ def stratified_split(df: pd.DataFrame, val_ratio: float, seed: int) -> Tuple[pd.
     """Create a stratified train/validation split."""
     if "label_idx" not in df.columns:
         raise ValueError("DataFrame must contain label_idx before splitting.")
+    class_counts = df["label_idx"].value_counts()
+    if class_counts.min() < 2:
+        raise ValueError("Each class needs at least two images for stratified validation split.")
     train_df, val_df = train_test_split(
         df,
         test_size=val_ratio,

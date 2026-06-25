@@ -29,7 +29,11 @@ def main():
     criterion = build_loss_function(num_classes, train_df["label_idx"].tolist(), cfg.USE_CLASS_WEIGHT, cfg.LABEL_SMOOTHING, device)
     optimizer = build_optimizer(model, cfg.LEARNING_RATE, cfg.WEIGHT_DECAY)
     scheduler = build_scheduler(optimizer, cfg.EPOCHS, cfg.MIN_LR)
-    scaler = torch.cuda.amp.GradScaler(enabled=bool(cfg.USE_AMP and device.type == "cuda"))
+    amp_enabled = bool(cfg.USE_AMP and device.type == "cuda")
+    try:
+        scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
+    except TypeError:
+        scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
     stopper = EarlyStopping(patience=cfg.EARLY_STOPPING_PATIENCE)
 
     fields = ["epoch", "train_loss", "train_accuracy", "train_macro_f1", "train_weighted_f1", "val_loss", "val_accuracy", "val_macro_f1", "val_weighted_f1", "lr"]

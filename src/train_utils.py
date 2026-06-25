@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import math
+from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -215,7 +216,14 @@ def train_one_epoch(model: nn.Module, loader, criterion, optimizer, device: torc
     avg_loss = total_loss / max(1, len(loader.dataset))
     acc = calculate_accuracy(all_true, all_pred)
     macro_f1, weighted_f1 = calculate_f1(all_true, all_pred)
-    return {"loss": avg_loss, "accuracy": acc, "macro_f1": macro_f1, "weighted_f1": weighted_f1}
+    return {
+        "loss": avg_loss,
+        "accuracy": acc,
+        "macro_f1": macro_f1,
+        "weighted_f1": weighted_f1,
+        "true_counts": dict(Counter(all_true)),
+        "pred_counts": dict(Counter(all_pred)),
+    }
 
 
 def validate(model: nn.Module, loader, criterion, device: torch.device) -> Tuple[Dict[str, float], List[int], List[int]]:

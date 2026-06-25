@@ -1,6 +1,8 @@
 """Training entry. Run: python train.py"""
 from pathlib import Path
+from collections import Counter
 import csv
+import json
 import torch
 
 import config as cfg
@@ -52,6 +54,42 @@ def _topk_path(rank: int) -> Path:
     return base.with_name(f"{base.stem}_top{rank}{base.suffix}")
 
 
+def _named_counts(counts, idx_to_class):
+    return {
+        idx_to_class.get(str(int(label_idx)), str(label_idx)): int(count)
+        for label_idx, count in sorted(counts.items(), key=lambda item: int(item[0]))
+    }
+
+
+def _split_label_counts(df, idx_to_class):
+    counts = Counter(df["label_idx"].astype(int).tolist())
+    return _named_counts(counts, idx_to_class)
+
+
+def _json_counts(counts, idx_to_class):
+    return json.dumps(_named_counts(counts, idx_to_class), ensure_ascii=False)
+
+
+def _print_split_debug(df, train_df, val_df, class_to_idx, idx_to_class):
+    print("class_to_idx=" + json.dumps(class_to_idx, ensure_ascii=False), flush=True)
+    print(f"dataset_total={len(df)} label_counts={_split_label_counts(df, idx_to_class)}", flush=True)
+    print(f"train_total={len(train_df)} label_counts={_split_label_counts(train_df, idx_to_class)}", flush=True)
+    print(f"val_total={len(val_df)} label_counts={_split_label_counts(val_df, idx_to_class)}", flush=True)
+
+
+def _print_config_warnings():
+    sampler = str(cfg.SAMPLER_TYPE).lower()
+    loss_type = str(cfg.LOSS_TYPE).lower()
+    if sampler == "weighted" and cfg.USE_CLASS_WEIGHT:
+        print("WARNING: SAMPLER_TYPE=weighted and USE_CLASS_WEIGHT=true are both enabled; start with only one imbalance method.", flush=True)
+    if sampler == "weighted" and loss_type == "class_balanced_focal":
+        print("WARNING: weighted sampler plus class_balanced_focal can over-correct minority classes; use only after a stable baseline.", flush=True)
+    if loss_type in {"focal", "class_balanced_focal"} and cfg.LABEL_SMOOTHING > 0.05:
+        print("WARNING: focal-style losses with label smoothing above 0.05 can slow early minority-class recovery.", flush=True)
+    if cfg.HEAD_LR_MULT > 2.0:
+        print("WARNING: HEAD_LR_MULT above 2.0 is aggressive and can amplify early majority-class collapse.", flush=True)
+
+
 def main():
     set_seed(cfg.SEED)
     ensure_dirs([cfg.RESULTS_DIR, cfg.OUTPUTS_DIR, cfg.SUBMISSIONS_DIR, cfg.ERRORS_DIR, cfg.LOGS_DIR])
@@ -73,6 +111,8 @@ def main():
         print(f"Using K-fold split: fold {cfg.FOLD_INDEX + 1}/{cfg.NUM_FOLDS}", flush=True)
     else:
         train_df, val_df = stratified_split(df, cfg.VAL_RATIO, cfg.SEED)
+    _print_split_debug(df, train_df, val_df, class_to_idx, idx_to_class)
+    _print_config_warnings()
     train_loader, val_loader = create_dataloaders(
         train_df, val_df, cfg.IMG_SIZE, cfg.BATCH_SIZE, cfg.NUM_WORKERS, cfg.MEAN, cfg.STD,
         cfg.AUGMENT_PROFILE, cfg.SAMPLER_TYPE,
@@ -103,7 +143,20 @@ def main():
     stopper = EarlyStopping(patience=cfg.EARLY_STOPPING_PATIENCE)
     ema = ModelEMA(model, cfg.EMA_DECAY) if cfg.USE_EMA else None
 
-    fields = ["epoch", "train_loss", "train_accuracy", "train_macro_f1", "train_weighted_f1", "val_loss", "val_accuracy", "val_macro_f1", "val_weighted_f1", "lr"]
+    fields = [
+        "epoch",
+        "train_loss",
+        "train_accuracy",
+        "train_macro_f1",
+        "train_weighted_f1",
+        "val_loss",
+        "val_accuracy",
+        "val_macro_f1",
+        "val_weighted_f1",
+        "lr",
+        "train_pred_distribution",
+        "val_pred_distribution",
+    ]
     with Path(cfg.TRAIN_LOG_PATH).open("w", newline="", encoding="utf-8") as f:
         csv.DictWriter(f, fieldnames=fields).writeheader()
 
@@ -124,6 +177,7 @@ def main():
         )
         eval_model = ema.ema if ema is not None else model
         vm, y_true, y_pred = validate(eval_model, val_loader, criterion, device)
+        val_pred_counts = Counter(y_pred)
         scheduler.step()
         score = vm.get(cfg.TARGET_METRIC, vm["macro_f1"])
         if stopper.step(score):
@@ -143,11 +197,29 @@ def main():
                 for rank, (_, path) in enumerate(top_records, start=1):
                     if path.exists() and path != _topk_path(rank):
                         _topk_path(rank).write_bytes(path.read_bytes())
-        row = {"epoch": epoch, "train_loss": tm["loss"], "train_accuracy": tm["accuracy"], "train_macro_f1": tm["macro_f1"], "train_weighted_f1": tm["weighted_f1"], "val_loss": vm["loss"], "val_accuracy": vm["accuracy"], "val_macro_f1": vm["macro_f1"], "val_weighted_f1": vm["weighted_f1"], "lr": optimizer.param_groups[0]["lr"]}
+        row = {
+            "epoch": epoch,
+            "train_loss": tm["loss"],
+            "train_accuracy": tm["accuracy"],
+            "train_macro_f1": tm["macro_f1"],
+            "train_weighted_f1": tm["weighted_f1"],
+            "val_loss": vm["loss"],
+            "val_accuracy": vm["accuracy"],
+            "val_macro_f1": vm["macro_f1"],
+            "val_weighted_f1": vm["weighted_f1"],
+            "lr": optimizer.param_groups[0]["lr"],
+            "train_pred_distribution": _json_counts(tm.get("pred_counts", {}), idx_to_class),
+            "val_pred_distribution": _json_counts(val_pred_counts, idx_to_class),
+        }
         with Path(cfg.TRAIN_LOG_PATH).open("a", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=fields).writerow(row)
         plot_training_curves(cfg.TRAIN_LOG_PATH, cfg.TRAINING_CURVES_PATH)
         print(row, flush=True)
+        print(f"train_pred_distribution={_named_counts(tm.get('pred_counts', {}), idx_to_class)}", flush=True)
+        print(f"val_pred_distribution={_named_counts(val_pred_counts, idx_to_class)}", flush=True)
+        if len(val_pred_counts) == 1 and len(class_to_idx) > 1:
+            only_class = next(iter(_named_counts(val_pred_counts, idx_to_class)))
+            print(f"WARNING: validation predictions collapsed to one class: {only_class}", flush=True)
         if stopper.should_stop:
             break
 

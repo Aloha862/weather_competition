@@ -169,7 +169,7 @@ Useful overrides:
 - `PRETRAINED`: default `true`; set `false` for offline smoke tests.
 - `NUM_WORKERS`: use `0` in Notebook; use `2` or `4` in GPU jobs if stable.
 - `USE_CLASS_WEIGHT`: default `false`; try `true` if minority classes have poor recall.
-- `AUGMENT_PROFILE`: `light`, `weather_safe`, or `strong`; default `weather_safe`.
+- `AUGMENT_PROFILE`: `light`, `weather_safe`, or `strong`; default `light`.
 - `LOSS_TYPE`: `ce`, `focal`, or `class_balanced_focal`.
 - `SAMPLER_TYPE`: `none` or `weighted`; do not combine aggressively with class weights unless validated.
 - `USE_EMA`: enable exponential moving average validation/checkpoint weights.
@@ -181,6 +181,11 @@ Useful overrides:
 - `SAVE_TOP_K`: save more than one top checkpoint.
 - `TARGET_METRIC`: default `macro_f1`; keep this for imbalanced classes.
 - `RESULTS_DIR`, `OUTPUTS_DIR`, `LOGS_DIR`: redirect generated files for experiments.
+
+The code now prints label-count and prediction-distribution debug output before
+and during training. If validation predictions collapse to one class, stop that
+run and return to the rescue configuration below before trying stronger
+optimization settings.
 
 ## F1 Optimization Route
 
@@ -200,6 +205,32 @@ Current EfficientNetV2-S validation is already strong: accuracy around 0.93, wei
 - Batch experiment runner and error-analysis report script.
 
 ### Recommended Experiments
+
+Rescue configuration, use this first if the model predicts only `cloudy`:
+
+```python
+os.environ["DEVICE"] = "cuda"
+os.environ["REQUIRE_CUDA"] = "true"
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["IMG_SIZE"] = "224"
+os.environ["BATCH_SIZE"] = "16"
+os.environ["EPOCHS"] = "20"
+os.environ["LEARNING_RATE"] = "1e-4"
+os.environ["LABEL_SMOOTHING"] = "0.03"
+os.environ["AUGMENT_PROFILE"] = "light"
+os.environ["LOSS_TYPE"] = "ce"
+os.environ["USE_CLASS_WEIGHT"] = "true"
+os.environ["SAMPLER_TYPE"] = "none"
+os.environ["USE_EMA"] = "false"
+os.environ["USE_WARMUP"] = "true"
+os.environ["WARMUP_EPOCHS"] = "2"
+os.environ["HEAD_LR_MULT"] = "1.0"
+```
+
+Do not enable `SAMPLER_TYPE=weighted`, `USE_CLASS_WEIGHT=true`, and
+`LOSS_TYPE=class_balanced_focal` at the same time. Try one imbalance method at a
+time, verify `val_pred_distribution` contains all classes, then move to a
+stronger setup.
 
 Experiment 0, baseline:
 
@@ -288,6 +319,7 @@ os.environ["USE_EMA"] = "true"
 os.environ["USE_WARMUP"] = "true"
 os.environ["USE_CLASS_WEIGHT"] = "false"
 os.environ["SAMPLER_TYPE"] = "none"
+os.environ["HEAD_LR_MULT"] = "1.0"
 os.environ["USE_TTA"] = "false"
 ```
 

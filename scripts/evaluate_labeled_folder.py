@@ -5,6 +5,7 @@ import argparse
 import csv
 import sys
 from pathlib import Path
+from typing import Dict, List, Union
 
 import torch
 from sklearn.metrics import accuracy_score, classification_report, f1_score
@@ -21,7 +22,7 @@ from src.model import build_model  # noqa: E402
 from src.utils import ensure_dir, get_device, load_checkpoint, load_checkpoint_payload, load_json, save_json  # noqa: E402
 
 
-def evaluate(folder: Path, output_dir: Path, batch_size: int, num_workers: int) -> dict[str, float]:
+def evaluate(folder: Path, output_dir: Path, batch_size: int, num_workers: int) -> Dict[str, float]:
     device = get_device()
     idx_to_class = load_json(cfg.IDX_TO_CLASS_PATH)
     known_labels = set(str(v) for v in idx_to_class.values())
@@ -45,9 +46,9 @@ def evaluate(folder: Path, output_dir: Path, batch_size: int, num_workers: int) 
     )
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=torch.cuda.is_available())
 
-    y_true: list[str] = []
-    y_pred: list[str] = []
-    rows: list[dict[str, str | float]] = []
+    y_true: List[str] = []
+    y_pred: List[str] = []
+    rows: List[Dict[str, Union[str, float, int]]] = []
     with torch.inference_mode():
         offset = 0
         for images, image_ids in tqdm(loader, desc="Evaluate", leave=False):
@@ -111,4 +112,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

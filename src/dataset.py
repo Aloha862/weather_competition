@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import pandas as pd
 from PIL import Image
@@ -39,7 +39,7 @@ def _discover_class_dirs(train_dir: Path) -> List[Path]:
 class WeatherDataset(Dataset):
     """PyTorch dataset for train, validation and test images."""
 
-    def __init__(self, image_paths: Sequence[str | Path], labels: Optional[Sequence[int]] = None,
+    def __init__(self, image_paths: Sequence[Union[str, Path]], labels: Optional[Sequence[int]] = None,
                  image_ids: Optional[Sequence[str]] = None, transform=None):
         self.image_paths = [Path(p) for p in image_paths]
         self.labels = list(labels) if labels is not None else None
@@ -110,7 +110,7 @@ def build_transforms(img_size: int, is_train: bool, mean=(0.485, 0.456, 0.406), 
     ])
 
 
-def scan_image_folder(train_dir: str | Path) -> pd.DataFrame:
+def scan_image_folder(train_dir: Union[str, Path]) -> pd.DataFrame:
     """Scan data/train/class_name/image files and return a dataframe."""
     train_dir = Path(train_dir)
     if not train_dir.exists():
@@ -135,7 +135,7 @@ def scan_image_folder(train_dir: str | Path) -> pd.DataFrame:
     return df
 
 
-def scan_test_folder(test_dir: str | Path) -> pd.DataFrame:
+def scan_test_folder(test_dir: Union[str, Path]) -> pd.DataFrame:
     """Scan test image folder."""
     test_dir = Path(test_dir)
     if not test_dir.exists():
@@ -149,7 +149,7 @@ def scan_test_folder(test_dir: str | Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def load_csv_dataset(csv_path: str | Path, image_root: str | Path,
+def load_csv_dataset(csv_path: Union[str, Path], image_root: Union[str, Path],
                      path_col: str = "image", label_col: str = "label") -> pd.DataFrame:
     """Load a CSV label file when the competition data uses table format."""
     csv_path = Path(csv_path)
@@ -164,7 +164,8 @@ def load_csv_dataset(csv_path: str | Path, image_root: str | Path,
     return df[["path", "label", "image_id"]]
 
 
-def build_class_mapping(labels: Sequence[str], class_to_idx_path: str | Path, idx_to_class_path: str | Path) -> Tuple[Dict[str, int], Dict[str, str]]:
+def build_class_mapping(labels: Sequence[str], class_to_idx_path: Union[str, Path],
+                        idx_to_class_path: Union[str, Path]) -> Tuple[Dict[str, int], Dict[str, str]]:
     """Build and save stable class mappings."""
     classes = sorted(set(str(x) for x in labels))
     class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
@@ -233,7 +234,8 @@ def create_dataloaders(train_df: pd.DataFrame, val_df: pd.DataFrame, img_size: i
     return train_loader, val_loader
 
 
-def create_test_loader(test_dir: str | Path, img_size: int, batch_size: int, num_workers: int, mean, std) -> Tuple[pd.DataFrame, DataLoader]:
+def create_test_loader(test_dir: Union[str, Path], img_size: int, batch_size: int,
+                       num_workers: int, mean, std) -> Tuple[pd.DataFrame, DataLoader]:
     """Create test DataLoader for inference."""
     test_df = scan_test_folder(test_dir)
     dataset = WeatherDataset(test_df["path"].tolist(), labels=None, image_ids=test_df["image_id"].tolist(),

@@ -14,6 +14,7 @@ import shutil
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 DEFAULT_URL = "https://huggingface.co/datasets/davidshableski/weatherimages/resolve/main/Data.zip"
@@ -63,12 +64,12 @@ def _extract(archive: Path, extract_dir: Path, force: bool = False) -> None:
         zf.extractall(extract_dir)
 
 
-def _class_name(path: Path) -> str | None:
+def _class_name(path: Path) -> Optional[str]:
     return CLASS_ALIASES.get(path.name.strip().lower())
 
 
-def _find_class_dirs(root: Path, preferred_split: str) -> list[tuple[Path, str]]:
-    candidates: list[tuple[Path, str, int]] = []
+def _find_class_dirs(root: Path, preferred_split: str) -> List[Tuple[Path, str]]:
+    candidates: List[Tuple[Path, str, int]] = []
     for folder in root.rglob("*"):
         if not folder.is_dir():
             continue
@@ -82,13 +83,14 @@ def _find_class_dirs(root: Path, preferred_split: str) -> list[tuple[Path, str]]
         candidates.append((folder, label, split_bonus))
 
     # Prefer folders below the requested split, then avoid duplicate labels.
-    selected: dict[str, Path] = {}
+    selected: Dict[str, Path] = {}
     for folder, label, _ in sorted(candidates, key=lambda x: (x[2], len(x[0].parts))):
         selected.setdefault(label, folder)
     return [(folder, label) for label, folder in sorted(selected.items())]
 
 
-def _copy_dataset(class_dirs: list[tuple[Path, str]], output_dir: Path, max_per_class: int | None, overwrite: bool) -> None:
+def _copy_dataset(class_dirs: List[Tuple[Path, str]], output_dir: Path,
+                  max_per_class: Optional[int], overwrite: bool) -> None:
     if output_dir.exists() and overwrite:
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -136,4 +138,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

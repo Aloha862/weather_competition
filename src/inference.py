@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import torch
@@ -19,7 +19,7 @@ def _model_size_mb(model) -> float:
 
 def predict_test(model, test_loader, device: torch.device, idx_to_class: Dict[str, str],
                  use_tta: bool = False, tta_mode: str = "none",
-                 benchmark_path: str | Path | None = None) -> Tuple[List[str], List[str], List[float]]:
+                 benchmark_path: Optional[Union[str, Path]] = None) -> Tuple[List[str], List[str], List[float]]:
     """Run batch inference on test images."""
     model.eval()
     image_ids: List[str] = []
@@ -60,8 +60,8 @@ def predict_test(model, test_loader, device: torch.device, idx_to_class: Dict[st
     return image_ids, labels, confs
 
 
-def generate_submission(image_ids: List[str], pred_labels: List[str], sample_submission_path: str | Path,
-                        save_path: str | Path) -> Path:
+def generate_submission(image_ids: List[str], pred_labels: List[str], sample_submission_path: Union[str, Path],
+                        save_path: Union[str, Path]) -> Path:
     """Generate a submission file using the sample columns when available."""
     save_path = Path(save_path)
     ensure_dir(save_path.parent)

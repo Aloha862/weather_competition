@@ -3,7 +3,7 @@ import json
 import os
 import random
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -21,20 +21,20 @@ def set_seed(seed: int = 42) -> None:
     torch.backends.cudnn.deterministic = True
 
 
-def ensure_dir(path: Path | str) -> Path:
+def ensure_dir(path: Union[Path, str]) -> Path:
     """Create a directory if it does not exist."""
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def ensure_dirs(paths: Iterable[Path | str]) -> None:
+def ensure_dirs(paths: Iterable[Union[Path, str]]) -> None:
     """Create multiple directories."""
     for path in paths:
         ensure_dir(path)
 
 
-def save_json(obj: Dict[str, Any], path: Path | str) -> None:
+def save_json(obj: Dict[str, Any], path: Union[Path, str]) -> None:
     """Save a Python dict as UTF-8 JSON."""
     path = Path(path)
     ensure_dir(path.parent)
@@ -42,7 +42,7 @@ def save_json(obj: Dict[str, Any], path: Path | str) -> None:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
-def load_json(path: Path | str) -> Dict[str, Any]:
+def load_json(path: Union[Path, str]) -> Dict[str, Any]:
     """Load a UTF-8 JSON file."""
     path = Path(path)
     if not path.exists():
@@ -51,7 +51,7 @@ def load_json(path: Path | str) -> Dict[str, Any]:
         return json.load(f)
 
 
-def check_path_exists(path: Path | str, name: str = "path") -> Path:
+def check_path_exists(path: Union[Path, str], name: str = "path") -> Path:
     """Check that a file or directory exists."""
     path = Path(path)
     if not path.exists():
@@ -97,7 +97,7 @@ def get_device() -> torch.device:
 
 
 def save_checkpoint(model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer], epoch: int,
-                    best_score: float, path: Path | str, extra: Optional[Dict[str, Any]] = None) -> None:
+                    best_score: float, path: Union[Path, str], extra: Optional[Dict[str, Any]] = None) -> None:
     """Save model checkpoint to results directory."""
     path = Path(path)
     ensure_dir(path.parent)
@@ -113,7 +113,7 @@ def save_checkpoint(model: torch.nn.Module, optimizer: Optional[torch.optim.Opti
     torch.save(payload, path)
 
 
-def load_checkpoint_payload(path: Path | str, device: torch.device) -> Dict[str, Any]:
+def load_checkpoint_payload(path: Union[Path, str], device: torch.device) -> Dict[str, Any]:
     """Load a checkpoint file and return its payload."""
     path = Path(path)
     if not path.exists():
@@ -121,7 +121,7 @@ def load_checkpoint_payload(path: Path | str, device: torch.device) -> Dict[str,
     return torch.load(path, map_location=device)
 
 
-def load_checkpoint(model: torch.nn.Module, path: Path | str, device: torch.device) -> Dict[str, Any]:
+def load_checkpoint(model: torch.nn.Module, path: Union[Path, str], device: torch.device) -> Dict[str, Any]:
     """Load checkpoint into a model and return checkpoint metadata."""
     checkpoint = load_checkpoint_payload(path, device)
     state_dict = checkpoint.get("model_state_dict", checkpoint)
@@ -129,7 +129,8 @@ def load_checkpoint(model: torch.nn.Module, path: Path | str, device: torch.devi
     return checkpoint
 
 
-def check_submission_format(submission_path: Path | str, sample_path: Path | str | None = None) -> None:
+def check_submission_format(submission_path: Union[Path, str],
+                            sample_path: Optional[Union[Path, str]] = None) -> None:
     """Validate basic submission CSV format before upload."""
     submission_path = Path(submission_path)
     if not submission_path.exists():

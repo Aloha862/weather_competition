@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,7 +33,7 @@ def print_classification_report(y_true: Sequence[int], y_pred: Sequence[int], ta
 
 
 def save_per_class_metrics(y_true: Sequence[int], y_pred: Sequence[int], class_names: List[str],
-                           save_path: str | Path) -> pd.DataFrame:
+                           save_path: Union[str, Path]) -> pd.DataFrame:
     """Save precision/recall/F1/support per class sorted by F1 ascending."""
     precision, recall, f1, support = precision_recall_fscore_support(
         y_true, y_pred, labels=list(range(len(class_names))), zero_division=0
@@ -52,7 +52,7 @@ def save_per_class_metrics(y_true: Sequence[int], y_pred: Sequence[int], class_n
 
 
 def save_validation_predictions(image_paths: Sequence[str], y_true: Sequence[int], y_pred: Sequence[int],
-                                idx_to_class: Dict[str, str], save_path: str | Path) -> Path:
+                                idx_to_class: Dict[str, str], save_path: Union[str, Path]) -> Path:
     """Save validation predictions for later error analysis."""
     rows = []
     for path, true_idx, pred_idx in zip(image_paths, y_true, y_pred):
@@ -84,7 +84,8 @@ def top_confusion_pairs(y_true: Sequence[int], y_pred: Sequence[int], class_name
     return sorted(pairs, key=lambda x: int(x["count"]), reverse=True)[:top_k]
 
 
-def plot_confusion_matrix(y_true: Sequence[int], y_pred: Sequence[int], class_names: List[str], save_path: str | Path) -> None:
+def plot_confusion_matrix(y_true: Sequence[int], y_pred: Sequence[int], class_names: List[str],
+                          save_path: Union[str, Path]) -> None:
     """Save confusion matrix figure."""
     save_path = Path(save_path)
     ensure_dir(save_path.parent)
@@ -106,7 +107,7 @@ def plot_confusion_matrix(y_true: Sequence[int], y_pred: Sequence[int], class_na
     plt.close(fig)
 
 
-def plot_training_curves(log_path: str | Path, save_path: str | Path) -> None:
+def plot_training_curves(log_path: Union[str, Path], save_path: Union[str, Path]) -> None:
     """Save loss and validation metric curves from the CSV training log."""
     log_path = Path(log_path)
     if not log_path.exists():
@@ -139,7 +140,8 @@ def plot_training_curves(log_path: str | Path, save_path: str | Path) -> None:
 
 
 def export_error_samples(image_paths: Sequence[str], y_true: Sequence[int], y_pred: Sequence[int],
-                         idx_to_class: Dict[str, str], output_dir: str | Path, max_per_pair: int = 30) -> None:
+                         idx_to_class: Dict[str, str], output_dir: Union[str, Path],
+                         max_per_pair: int = 30) -> None:
     """Copy misclassified validation samples to grouped folders."""
     output_dir = ensure_dir(output_dir)
     counters: Dict[str, int] = {}
@@ -160,7 +162,7 @@ def export_error_samples(image_paths: Sequence[str], y_true: Sequence[int], y_pr
 
 
 def export_focus_error_samples(image_paths: Sequence[str], y_true: Sequence[int], y_pred: Sequence[int],
-                               idx_to_class: Dict[str, str], output_dir: str | Path,
+                               idx_to_class: Dict[str, str], output_dir: Union[str, Path],
                                focus_classes: Sequence[str] = ("rainy", "snowy"),
                                max_per_class: int = 80) -> None:
     """Copy errors involving focus classes for quick rainy/snowy inspection."""

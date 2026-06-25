@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import shutil
 from pathlib import Path
+from typing import List, Optional
 
 VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -20,14 +21,14 @@ def _has_direct_images(path: Path) -> bool:
     return any(p.is_file() and p.suffix.lower() in VALID_EXTENSIONS for p in path.iterdir())
 
 
-def _find_class_dirs(source: Path) -> list[Path]:
+def _find_class_dirs(source: Path) -> List[Path]:
     direct = [p for p in sorted(source.iterdir()) if p.is_dir() and _has_direct_images(p)]
     if direct:
         return direct
     return [p for p in sorted(source.rglob("*")) if p.is_dir() and _has_direct_images(p)]
 
 
-def prepare(source: Path, output: Path, max_per_class: int | None = None, overwrite: bool = False) -> None:
+def prepare(source: Path, output: Path, max_per_class: Optional[int] = None, overwrite: bool = False) -> None:
     if not source.exists():
         raise FileNotFoundError(f"Source directory does not exist: {source}")
     class_dirs = _find_class_dirs(source)

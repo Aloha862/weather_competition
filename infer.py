@@ -19,7 +19,16 @@ def main():
     load_checkpoint(model, cfg.BEST_MODEL_PATH, device)
 
     _, test_loader = build_test_loader_from_config(cfg)
-    image_ids, pred_labels, _ = predict_test(model, test_loader, device, idx_to_class)
+    benchmark_path = cfg.INFERENCE_BENCHMARK_PATH if cfg.INFERENCE_BENCHMARK else None
+    image_ids, pred_labels, _ = predict_test(
+        model,
+        test_loader,
+        device,
+        idx_to_class,
+        cfg.USE_TTA,
+        cfg.TTA_MODE,
+        benchmark_path,
+    )
     save_path = generate_submission(image_ids, pred_labels, cfg.SAMPLE_SUBMISSION_PATH, cfg.SUBMISSION_PATH)
     print(f"Submission saved to: {save_path}")
 

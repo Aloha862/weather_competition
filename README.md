@@ -56,10 +56,14 @@ This file intentionally does not reinstall `torch` or `torchvision`, because com
 |-- configs/
 |   `-- smoke_test_config.py
 |-- scripts/
+|   |-- analyze_errors.py
+|   |-- benchmark_inference.py
 |   |-- check_platform_paths.py
 |   |-- download_public_weather_test.py
 |   |-- evaluate_labeled_folder.py
 |   |-- prepare_public_weather_dataset.py
+|   |-- run_kfold.py
+|   |-- run_experiments.py
 |   `-- smoke_test.py
 |-- src/
 |   |-- dataset.py
@@ -165,8 +169,200 @@ Useful overrides:
 - `PRETRAINED`: default `true`; set `false` for offline smoke tests.
 - `NUM_WORKERS`: use `0` in Notebook; use `2` or `4` in GPU jobs if stable.
 - `USE_CLASS_WEIGHT`: default `false`; try `true` if minority classes have poor recall.
+- `AUGMENT_PROFILE`: `light`, `weather_safe`, or `strong`; default `light`.
+- `LOSS_TYPE`: `ce`, `focal`, or `class_balanced_focal`.
+- `SAMPLER_TYPE`: `none` or `weighted`; do not combine aggressively with class weights unless validated.
+- `USE_EMA`: enable exponential moving average validation/checkpoint weights.
+- `USE_WARMUP`: enable linear warmup before cosine decay.
+- `USE_FREEZE_BACKBONE`: train classifier head first, then unfreeze the backbone.
+- `GRAD_ACCUM_STEPS`: accumulate gradients when GPU memory limits batch size.
+- `USE_TTA` and `TTA_MODE=hflip`: optional lightweight test-time augmentation.
+- `EXPERIMENT_NAME`: used by experiment scripts to separate logs/results.
+- `SAVE_TOP_K`: save more than one top checkpoint.
 - `TARGET_METRIC`: default `macro_f1`; keep this for imbalanced classes.
 - `RESULTS_DIR`, `OUTPUTS_DIR`, `LOGS_DIR`: redirect generated files for experiments.
+
+The code now prints label-count and prediction-distribution debug output before
+and during training. If validation predictions collapse to one class, stop that
+run and return to the rescue configuration below before trying stronger
+optimization settings.
+
+## F1 Optimization Route
+
+Current EfficientNetV2-S validation is already strong: accuracy around 0.93, weighted F1 around 0.93, and macro F1 around 0.91. The main bottleneck is not the large classes (`cloudy`, `sunny`) but minority classes (`rainy`, `snowy`). Because the training distribution is imbalanced (`cloudy` and `sunny` are much larger), weighted F1 can look healthy while macro F1 is pulled down by small-class precision/recall.
+
+### What Was Added
+
+- Weather-safe augmentation profiles in `src/dataset.py`.
+- `WeightedRandomSampler` via `SAMPLER_TYPE=weighted`.
+- CE, focal loss, and class-balanced focal loss via `LOSS_TYPE`.
+- EMA model weights via `USE_EMA=true`.
+- Warmup + cosine scheduler via `USE_WARMUP=true`.
+- Optional backbone freeze and higher classifier-head learning rate.
+- Gradient accumulation and gradient clipping.
+- Per-class metric CSV, validation prediction CSV, confusion pairs, and rainy/snowy focused error export.
+- Optional hflip TTA and inference benchmark JSON.
+- Batch experiment runner and error-analysis report script.
+
+### Recommended Experiments
+
+Rescue configuration, use this first if the model predicts only `cloudy`:
+
+```python
+os.environ["DEVICE"] = "cuda"
+os.environ["REQUIRE_CUDA"] = "true"
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["IMG_SIZE"] = "224"
+os.environ["BATCH_SIZE"] = "16"
+os.environ["EPOCHS"] = "20"
+os.environ["LEARNING_RATE"] = "1e-4"
+os.environ["LABEL_SMOOTHING"] = "0.03"
+os.environ["AUGMENT_PROFILE"] = "light"
+os.environ["LOSS_TYPE"] = "ce"
+os.environ["USE_CLASS_WEIGHT"] = "true"
+os.environ["SAMPLER_TYPE"] = "none"
+os.environ["USE_EMA"] = "false"
+os.environ["USE_WARMUP"] = "true"
+os.environ["WARMUP_EPOCHS"] = "2"
+os.environ["HEAD_LR_MULT"] = "1.0"
+```
+
+Do not enable `SAMPLER_TYPE=weighted`, `USE_CLASS_WEIGHT=true`, and
+`LOSS_TYPE=class_balanced_focal` at the same time. Try one imbalance method at a
+time, verify `val_pred_distribution` contains all classes, then move to a
+stronger setup.
+
+Experiment 0, baseline:
+
+```python
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["IMG_SIZE"] = "224"
+os.environ["LOSS_TYPE"] = "ce"
+os.environ["AUGMENT_PROFILE"] = "light"
+```
+
+Experiment 1, larger input:
+
+```python
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["IMG_SIZE"] = "300"  # use 320 if memory allows
+```
+
+Experiment 2, weather-safe augmentation:
+
+```python
+os.environ["AUGMENT_PROFILE"] = "weather_safe"
+```
+
+Experiment 3, imbalance handling:
+
+```python
+os.environ["LOSS_TYPE"] = "focal"
+os.environ["SAMPLER_TYPE"] = "none"
+os.environ["USE_CLASS_WEIGHT"] = "false"
+```
+
+Alternative:
+
+```python
+os.environ["LOSS_TYPE"] = "ce"
+os.environ["SAMPLER_TYPE"] = "weighted"
+os.environ["USE_CLASS_WEIGHT"] = "false"
+```
+
+Experiment 4, EMA + warmup:
+
+```python
+os.environ["USE_EMA"] = "true"
+os.environ["USE_WARMUP"] = "true"
+os.environ["WARMUP_EPOCHS"] = "3"
+```
+
+Experiment 5, model comparison:
+
+```python
+os.environ["MODEL_NAME"] = "convnext_tiny"       # balanced speed/effect
+os.environ["MODEL_NAME"] = "convnext_small"      # potentially higher F1, slower
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s" # stable high-score candidate
+```
+
+Experiment 6, speed benchmark:
+
+```bash
+python scripts/benchmark_inference.py --batch-size 32
+```
+
+Experiment 7, optional hflip TTA:
+
+```bash
+python scripts/benchmark_inference.py --tta hflip --batch-size 32
+```
+
+Use hflip TTA only if macro F1 improves enough to justify the extra inference cost.
+
+### Suggested Main Configuration
+
+```python
+os.environ["DEVICE"] = "cuda"
+os.environ["REQUIRE_CUDA"] = "true"
+os.environ["MODEL_NAME"] = "tf_efficientnetv2_s"
+os.environ["FALLBACK_MODEL_NAME"] = "efficientnet_b0"
+os.environ["IMG_SIZE"] = "300"
+os.environ["BATCH_SIZE"] = "8"
+os.environ["EPOCHS"] = "40"
+os.environ["LEARNING_RATE"] = "2e-4"
+os.environ["WEIGHT_DECAY"] = "1e-4"
+os.environ["LABEL_SMOOTHING"] = "0.05"
+os.environ["AUGMENT_PROFILE"] = "weather_safe"
+os.environ["LOSS_TYPE"] = "focal"
+os.environ["USE_EMA"] = "true"
+os.environ["USE_WARMUP"] = "true"
+os.environ["USE_CLASS_WEIGHT"] = "false"
+os.environ["SAMPLER_TYPE"] = "none"
+os.environ["HEAD_LR_MULT"] = "1.0"
+os.environ["USE_TTA"] = "false"
+```
+
+### How To Judge an Experiment
+
+- Primary metric: `val_macro_f1`.
+- Secondary metrics: rainy/snowy F1 and recall in `logs/per_class_metrics.csv`.
+- Inspect `outputs/errors/focus_rainy_snowy/` after each serious run.
+- Run `python scripts/analyze_errors.py` to generate `outputs/error_analysis_report.md`.
+- Compare speed with `results/inference_benchmark.json`.
+
+### Why 98 Is Not Guaranteed
+
+Macro-F1 above 0.95 is a reasonable optimization target, but 0.98 depends on label quality, class boundary ambiguity, data leakage risk, and the hidden test distribution. This repo adds the tools to push toward 95+ while keeping inference speed and implementation complexity under control; it does not claim a guaranteed leaderboard score.
+
+### Batch Experiments
+
+Run predefined experiment grids:
+
+```bash
+python scripts/run_experiments.py --preset quick
+python scripts/run_experiments.py --preset f1
+```
+
+Results are appended to:
+
+```text
+logs/experiment_record.csv
+```
+
+### Optional K-Fold Stability Check
+
+K-fold is for offline stability validation, not for the default fast Notebook path:
+
+```bash
+python scripts/run_kfold.py --folds 5 --experiment-name kfold_e2s_weather
+```
+
+This writes per-fold outputs under `results/kfold_e2s_weather/`, `logs/kfold_e2s_weather/`, and `outputs/kfold_e2s_weather/`, plus:
+
+```text
+results/kfold_e2s_weather/kfold_summary.json
+```
 
 ## Smoke Test
 
